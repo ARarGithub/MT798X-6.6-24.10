@@ -19,7 +19,8 @@ if grep -Eq "ipq40xx|ipq806x" "/etc/openwrt_release"; then
 else
 	wifi_temp1="$(get_mtwifi_temp ra0)"
 	wifi_temp2="$(get_mtwifi_temp rax0)"
-	wifi_temp="$(echo "$wifi_temp1 $wifi_temp2" | xargs)"
+	wifi_temp3="$(get_mtwifi_temp rai0)"
+	wifi_temp="$(echo "$wifi_temp1 $wifi_temp2 $wifi_temp3" | xargs)"
 fi
 
 if grep -q "ipq40xx" "/etc/openwrt_release"; then

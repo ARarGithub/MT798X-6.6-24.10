@@ -5,6 +5,8 @@ CPU_LIST=`cat /proc/interrupts | sed -n '1p'`
 NUM_OF_CPU=0; for i in $CPU_LIST; do NUM_OF_CPU=`expr $NUM_OF_CPU + 1`; done;
 DEFAULT_RPS=0
 
+IS_NOT_WIFI7=1
+
 . /lib/functions.sh
 
 # $1: CPU#
@@ -22,6 +24,83 @@ CPU_RPS_ADD()
 	eval oval=\$CPU${1}_RPS
 	eval CPU${1}_RPS=\"\$CPU${1}_RPS $2\"
 	dbg2 "CPU${1}_RPS=\"\$CPU${1}_RPS $2\""
+}
+
+MT7990_whnat()
+{
+	num_of_wifi=$1
+	storage=$2
+	DEFAULT_RPS=0
+
+	IS_NOT_WIFI7=0
+
+	#Physical IRQ# setting
+	PCIe0=
+	eth_tx=229
+
+	#Ethernet RSS feature enables 4 Rx rings
+	eth_rx0=221
+	eth_rx1=222
+	eth_rx2=223
+	eth_rx3=224
+
+	if [ -d "/proc/warp_ctrl/warp0" ]; then
+		wifi1_irq=237
+		wifi2_irq=238
+		wifi3_irq=
+	else
+        	wifi1_irq=237
+        	wifi2_irq=238
+        	wifi3_irq=
+	fi
+
+	# Please update the CPU binding in each cases.
+	# CPU#_AFFINITY="add binding irq number here"
+	# CPU#_RPS="add binding interface name here"
+	dbg "[MT7990_whnat]"
+	if [ "$num_of_wifi" = "0" ]; then
+		CPU0_AFFINITY="$wifi1_irq $eth_rx0"
+		CPU1_AFFINITY="$wifi2_irq $eth_rx1"
+		CPU2_AFFINITY="$eth_tx $eth_rx2"
+		CPU3_AFFINITY="$eth_rx3"
+
+		CPU0_RPS=""
+		CPU1_RPS="$ethif1 $ethif2"
+		CPU2_RPS="$ethif1 $ethif2"
+		CPU3_RPS="$ethif1 $ethif2"
+	elif [ "$num_of_wifi" = "1" ]; then
+		CPU0_AFFINITY="$wifi1_irq $eth_rx0"
+		CPU1_AFFINITY="$wifi2_irq $eth_rx1"
+		CPU2_AFFINITY="$eth_tx $eth_rx2"
+		CPU3_AFFINITY="$eth_rx3"
+
+		CPU0_RPS="                $wifi1 $wifi1_apcli0"
+		CPU1_RPS="$ethif1 $ethif2 $wifi1 $wifi1_apcli0"
+		CPU2_RPS="$ethif1 $ethif2 $wifi1 $wifi1_apcli0"
+		CPU3_RPS="$ethif1 $ethif2 "
+	elif [ "$num_of_wifi" = "2" ]; then
+		CPU0_AFFINITY="$wifi1_irq $eth_rx0"
+		CPU1_AFFINITY="$wifi2_irq $eth_rx1"
+		CPU2_AFFINITY="$eth_tx $eth_rx2"
+		CPU3_AFFINITY="$eth_rx3"
+
+		CPU0_RPS="                $wifi1 $wifi2 $wifi1_apcli0 $wifi2_apcli0"
+		CPU1_RPS="$ethif1 $ethif2 $wifi1 $wifi2 $wifi1_apcli0 $wifi2_apcli0"
+		CPU2_RPS="$ethif1 $ethif2 $wifi1 $wifi2 $wifi1_apcli0 $wifi2_apcli0"
+		CPU3_RPS="$ethif1 $ethif2"
+	elif [ "$num_of_wifi" = "3" ]; then
+		CPU0_AFFINITY="$wifi1_irq $eth_rx0"
+		CPU1_AFFINITY="$wifi2_irq $eth_rx1"
+		CPU2_AFFINITY="$PCIe0 $wifi3_irq $eth_rx2"
+		CPU3_AFFINITY="$eth_tx $eth_rx3"
+
+		CPU0_RPS=""
+		CPU1_RPS="$ethif1 $ethif2                                           $wifi3 $wifi3_apcli0"
+		CPU2_RPS="$ethif1 $ethif2 $wifi1 $wifi2 $wifi1_apcli0 $wifi2_apcli0"
+		CPU3_RPS="$ethif1 $ethif2 $wifi1 $wifi2 $wifi3 $wifi1_apcli0 $wifi2_apcli0 $wifi3_apcli0"
+	else
+		dbg "MT7990_whnat with $NUM_OF_WIFI Wi-Fi bands is not support"
+	fi
 }
 
 MT7986_whnat()
@@ -913,8 +992,10 @@ RPS_IF_LIST=""	# setup by getEthIfName/getWiFiIfName/every model
 get_eth_if_name
 get_wifi_if_name	# It will add all wifi interfaces into $RPS_IF_LIST
 dbg2 "# default RPS_IF_LIST=$RPS_IF_LIST"
-IS_USBNET=0
-scan_usbnet
+if [ $IS_NOT_WIFI7 -eq 1 ]; then
+	IS_USBNET=0
+	scan_usbnet
+fi
 setup_model
 set_rps_cpu_bitmap
 set_rps_cpus $DEFAULT_RPS
